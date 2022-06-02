@@ -1,9 +1,12 @@
 @echo off
-for /f "delims=" %%i in ('jenv getjava') do set "var=%%i"
+for /f "tokens=* delims= " %%a in ('jenv getjava') do (set str=%%a)
 
-if exist "%var%/bin/java.exe" (
-    "%var%/bin/java.exe" %*
+:: Removing the first five invisible and special characters from the result by calling 'jenv getjava'.
+set jroot=%str:~5%
+
+if exist "%jroot%\bin\java.exe" (
+    "%jroot%\bin\java.exe" %*
 ) else (
     echo There was an error:
-    echo %var%
+    echo %jroot%
 )
