@@ -18,8 +18,8 @@ param (
     "jenv use <name>"           Applys the given Java-Version locally for the current shell
     "jenv local <name>"         Will use the given Java-Version whenever in this folder. Will set the Java-version for all subfolders as well
     #>
-    [Parameter(Position = 0)][validateset("list", "add", "change", "use", "remove", "local", "getjava", "link")] [string]$action,
-    
+    [Parameter(Position = 0)][validateset("list", "add", "change", "use", "remove", "local", "getjava", "link", "uninstall", "autoscan")] [string]$action,
+
     # Displays this helpful message
     [Alias("h")]
     [Switch]$help,
@@ -32,6 +32,7 @@ param (
 )
 
 #region Load all required modules
+Import-Module $PSScriptRoot\util.psm1  # Provides the Open-Prompt function
 Import-Module $PSScriptRoot\jenv-list.psm1 -Force
 Import-Module $PSScriptRoot\jenv-add.psm1 -Force
 Import-Module $PSScriptRoot\jenv-remove.psm1 -Force
@@ -40,6 +41,8 @@ Import-Module $PSScriptRoot\jenv-use.psm1 -Force
 Import-Module $PSScriptRoot\jenv-local.psm1 -Force
 Import-Module $PSScriptRoot\jenv-getjava.psm1 -Force
 Import-Module $PSScriptRoot\jenv-link.psm1 -Force
+Import-Module $PSScriptRoot\jenv-uninstall.psm1 -Force
+Import-Module $PSScriptRoot\jenv-autoscan.psm1 -Force
 #endregion
 
 #region Installation
@@ -63,7 +66,7 @@ if ($javaPaths.Length -gt 0) {
         [System.Environment]::SetEnvironmentVariable("PATH", $systemPath, [System.EnvironmentVariableTarget]::Machine) # Set globally
     }
     catch [System.Management.Automation.MethodInvocationException] {
-        Write-Host JEnv wants to change your system environment vars. Therefore you need to restart it with administration rights. This should only once be required. If you dont want to, you have to call JEnv on every terminal opening to change your session vars
+        Write-Host "JEnv wants to change your system environment vars. Therefore you need to restart it with administration rights. This should only once be required. If you dont want to, you have to call JEnv on every terminal opening to change your session vars"
     }
     $path = $userPath + ";" + $systemPath
 
@@ -108,8 +111,8 @@ if (!($config | Get-Member global)) {
 #region Apply java_home for jenv local
 $localname = ($config.locals | Where-Object { $_.path -eq (Get-Location) }).name
 $javahome = ($config.jenvs | Where-Object { $_.name -eq $localname }).path
-if ($null -eq $local) {
-    $javahome = $config.global 
+if ($null -eq $localname) {
+    $javahome = $config.global
 }
 $Env:JAVA_HOME = $javahome # Set for powershell users
 if ($output) {
@@ -125,6 +128,8 @@ if ($help -and $action -eq "") {
     Write-Host '"jenv use <name>"           Applys the given Java-Version locally for the current shell'
     Write-Host '"jenv local <name>"         Will use the given Java-Version whenever in this folder. Will set the Java-version for all subfolders as well'
     Write-Host '"jenv link <executable>"    Creates shortcuts for executables inside JAVA_HOME. For example "javac"'
+    Write-Host '"jenv uninstall <name>"     Deletes JEnv and restores the specified java version to the system. You may keep your config file'
+    Write-Host '"jenv autoscan ?<path>?"    Will scan the given path for java installations and ask to add them to JEnv. Path is optional'
     Write-Host 'Get help for individual commands using "jenv <list/add/remove/change/use/local> --help"'
 }
 else {
@@ -132,14 +137,16 @@ else {
     # Call the specified command
     # Action has to be one of the following because of the validateset
     switch ( $action ) {
-        list { Invoke-List $config $help @arguments }
+        list { Invoke-List $config $help }
         add { Invoke-Add $config $help @arguments }
         remove { Invoke-Remove $config $help @arguments }
         use { Invoke-Use $config $help $output @arguments }
         change { Invoke-Change $config $help $output @arguments }
-        local { Invoke-Local $config $help $output @arguments } 
-        getjava { Get-Java $config } 
-        link { Invoke-Link $config $help @arguments } 
+        local { Invoke-Local $config $help @arguments }
+        getjava { Get-Java $config }
+        link { Invoke-Link $help @arguments }
+        uninstall { Invoke-Uninstall $config $help @arguments }
+        autoscan { Invoke-AutoScan $config $help @arguments }
     }
 
     #region Save the config
